@@ -226,5 +226,24 @@
     "status_3xx": 0,
     "status_4xx": 0,
     "status_5xx": 0
+  },
+  {
+    "framework": "typev",
+    "language": "Type-C",
+    "rps": 18569209,
+    "avg_latency": "163us",
+    "p99_latency": "153us",
+    "cpu": "6477.0%",
+    "memory": "195MiB",
+    "connections": 512,
+    "threads": 64,
+    "duration": "5s",
+    "pipeline": 16,
+    "bandwidth": "123.93MB/s",
+    "reconnects": 0,
+    "status_2xx": 92846048,
+    "status_3xx": 0,
+    "status_4xx": 0,
+    "status_5xx": 0
   }
 ]

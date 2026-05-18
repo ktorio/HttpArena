@@ -367,6 +367,25 @@
     "status_5xx": 0
   },
   {
+    "framework": "typev",
+    "language": "Type-C",
+    "rps": 3032878,
+    "avg_latency": "180us",
+    "p99_latency": "794us",
+    "cpu": "6184.7%",
+    "memory": "454MiB",
+    "connections": 4096,
+    "threads": 64,
+    "duration": "5s",
+    "pipeline": 1,
+    "bandwidth": "20.24MB/s",
+    "reconnects": 0,
+    "status_2xx": 15164394,
+    "status_3xx": 0,
+    "status_4xx": 0,
+    "status_5xx": 0
+  },
+  {
     "framework": "workerman-websocket",
     "language": "PHP",
     "rps": 3413565,

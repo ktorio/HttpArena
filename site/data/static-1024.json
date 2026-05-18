@@ -1022,6 +1022,25 @@
     "status_5xx": 0
   },
   {
+    "framework": "typev",
+    "language": "Type-C",
+    "rps": 973340,
+    "avg_latency": "15.68ms",
+    "p99_latency": "15.68ms",
+    "cpu": "6476.6%",
+    "memory": "413MiB",
+    "connections": 1024,
+    "threads": 64,
+    "duration": "5s",
+    "pipeline": 1,
+    "bandwidth": "14.85GB",
+    "reconnects": 0,
+    "status_2xx": 4948245,
+    "status_3xx": 0,
+    "status_4xx": 0,
+    "status_5xx": 0
+  },
+  {
     "framework": "userver",
     "language": "C++",
     "rps": 165314,
