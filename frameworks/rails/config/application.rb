@@ -51,7 +51,7 @@ class BenchmarkApp < Rails::Application
   config.secret_key_base = 'benchmark-not-secret'
   config.hosts.clear
 
-  config.action_dispatch.default_headers = {'Server' => 'Rails'}
+  config.action_dispatch.default_headers = {}
 
   config.consider_all_requests_local = false
 
