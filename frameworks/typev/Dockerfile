@@ -12,7 +12,7 @@ WORKDIR /app
 # typev VM — binary + FFI plugins (json, stdcore, stdsocket, ...). Pre-built
 # (-O3 -march=x86-64-v3, static liburing) and fetched from object storage
 RUN wget -q -O /tmp/typev.zip \
-        https://typev.s3.fr-par.scw.cloud/typev-17-05-2026.zip && \
+        https://typev.s3.fr-par.scw.cloud/typev-18-05-2026.zip && \
     unzip -q /tmp/typev.zip -d /app && \
     rm /tmp/typev.zip
 

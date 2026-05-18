@@ -234,4 +234,10 @@ extern socket from "stdsocket" = {
      * Returns the number of complete request terminators found.
      */
     fn count_http_terminators(buf: uint[], n: uint) -> uint
+
+    /**
+     * SHA-1 of data[0..len) into the 20-byte `out` buffer. Native — keeps the
+     * 80-round hash off the bytecode path. Returns 0, or -1 if out < 20.
+     */
+    fn socket_sha1(data: uint[], len: uint, out: uint[]) -> int
 }
