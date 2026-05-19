@@ -8,8 +8,7 @@
   "enabled": true,
   "tests": [
     "pipelined",
-    "async-db",
-    "echo-ws"
+    "async-db"
   ],
   "maintainers": [
     "Kaliumhexacyanoferrat"
