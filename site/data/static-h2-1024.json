@@ -373,6 +373,25 @@
     "status_5xx": 0
   },
   {
+    "framework": "swerver",
+    "language": "Zig",
+    "rps": 239352,
+    "avg_latency": "43.73ms",
+    "p99_latency": "43.73ms",
+    "cpu": "6370.6%",
+    "memory": "2.5GiB",
+    "connections": 1024,
+    "threads": 64,
+    "duration": "5s",
+    "pipeline": 1,
+    "bandwidth": "13.85GB/s",
+    "reconnects": 0,
+    "status_2xx": 1213515,
+    "status_3xx": 0,
+    "status_4xx": 2337950,
+    "status_5xx": 0
+  },
+  {
     "framework": "Swoole",
     "language": "PHP",
     "rps": 380483,
