@@ -1,6 +1,6 @@
 [1] Puma starting in cluster mode...
 [1] * Puma version: 8.0.1 ("Into the Arena")
-[1] * Ruby version: ruby 4.0.4 (2026-05-12 revision b89eb1bcbf) +YJIT +MN +PRISM [x86_64-linux]
+[1] * Ruby version: ruby 4.0.5 (2026-05-20 revision 64336ffd0e) +YJIT +MN +PRISM [x86_64-linux]
 [1] *  Min threads: 4
 [1] *  Max threads: 4
 [1] *  Environment: production

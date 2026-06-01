@@ -17,7 +17,7 @@ routes() ->
         {~"/crud/items", ?MODULE, undefined},
         {~"/crud/items/:id", ?MODULE, undefined},
         {~"/ws", ?MODULE, undefined},
-        {~"/static/*path", roadrunner_static, #{dir => static_dir()}}
+        {~"/static/*path", roadrunner_static, #{dir => static_dir(), cache_ttl_ms => 1000}}
     ].
 
 static_dir() ->

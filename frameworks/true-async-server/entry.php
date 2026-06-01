@@ -61,7 +61,13 @@ $config = (new HttpServerConfig())
     // stay within RSS limits under concurrent 20 MiB POSTs (issue #26).
     ->setBodyStreamingEnabled(true)
     // Transparent gzip/brotli middleware — needed for the json-comp profile.
+    // Drop both levels to 1 to match Swoole's http_compression_level=1 default
+    // and the typical high-RPS arena workload. Encode CPU dominates byte-on-wire
+    // here; q=1 keeps ratio acceptable (br q=1 ≈ 1.5 KB vs q=4 ≈ 1.2 KB on the
+    // 6.7 KB /json/40 payload) at ~2× faster encode.
     ->setCompressionEnabled(true)
+    ->setCompressionLevel(1)
+    ->setBrotliLevel(1)
     // Built-in worker pool — HttpServer::start() spawns the pool itself.
     ->setWorkers($workers)
     // Run once per worker before its task loop. The class files contain
@@ -77,11 +83,17 @@ if ($tlsAvailable) {
         ->addListener('0.0.0.0', $tlsPort, true)
         ->addListener('0.0.0.0', 8081, true)
         ->setCertificate($certPath)
-        ->setPrivateKey($keyPath);
+        ->setPrivateKey($keyPath)
+        // Pin the TLS clear-text-out BIO ring to 64 KiB (#29). This already
+        // matches the built-in default, set explicitly so the arena's TLS
+        // write-buffer size stays fixed regardless of future default changes.
+        ->setTlsBufferBytes(64 * 1024);
 
     // HTTP/3 over QUIC on the same UDP port — powers baseline-h3 / static-h3.
-    // Reuses the TLS cert/key. Requires --enable-http3; if missing, the worker
-    // start() will throw — set H3_DISABLE=1 to skip on builds without it.
+    // Reuses the TLS cert/key and coexists with h2 on TCP :8443. A 120-iteration
+    // back-to-back restart repro (16 and 64 workers) showed 0 startup failures
+    // with this listener on — the C listener sets SO_REUSEADDR/SO_REUSEPORT — so
+    // it stays always-on. Set H3_DISABLE=1 to skip on builds without H3.
     if ($h3Enabled) {
         $config->addHttp3Listener('0.0.0.0', $h3Port);
     }

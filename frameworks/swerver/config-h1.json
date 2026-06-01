@@ -12,9 +12,7 @@
   },
   "buffer_pool": {
     "buffer_size": 65536,
-    "buffer_count": 1024,
-    "body_buffer_size": 22020096,
-    "body_buffer_count": 2
+    "buffer_count": 1024
   },
   "http2": {
     "max_streams": 256,

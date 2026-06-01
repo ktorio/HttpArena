@@ -150,6 +150,13 @@
     "type": "production",
     "engine": "zerg"
   },
+  "effinitive": {
+    "dir": "effinitive",
+    "description": "Ultra-high-performance custom HTTP server for .NET 10 \u2014 built from scratch for maximum speed.",
+    "repo": "https://github.com/HBartosch/Effinitive",
+    "type": "production",
+    "engine": "effinitive"
+  },
   "elysia": {
     "dir": "elysia",
     "description": "An ergonomic framework for Humans",
@@ -212,6 +219,13 @@
     "repo": "https://github.com/true-async/php-async",
     "type": "tuned",
     "engine": "frankenphp"
+  },
+  "genhttp-11": {
+    "dir": "genhttp-11",
+    "description": "Lightweight, embeddable and modular C# web server.",
+    "repo": "https://github.com/Kaliumhexacyanoferrat/GenHTTP",
+    "type": "tuned",
+    "engine": "genhttp"
   },
   "genhttp-kestrel": {
     "dir": "genhttp-kestrel",
@@ -457,7 +471,7 @@
   },
   "roadrunner": {
     "dir": "roadrunner",
-    "description": "Roadrunner: pure-Erlang HTTP/1.1 + HTTP/2 + WebSocket server from the Arizona framework.",
+    "description": "Roadrunner: pure-Erlang HTTP/1.1 + HTTP/2 + HTTP/3 + WebSocket server from the Arizona framework.",
     "repo": "https://github.com/arizona-framework/roadrunner",
     "type": "production",
     "engine": "roadrunner"
@@ -568,6 +582,13 @@
     "repo": "https://github.com/yangusik/symfony-spawn",
     "type": "tuned",
     "engine": "frankenphp"
+  },
+  "symfony-spawn-tas": {
+    "dir": "symfony-spawn-tas",
+    "description": "Symfony with symfony-spawn bundle: coroutine-per-request isolation via TrueAsync PHP core, Doctrine DBAL connection pooling, and TrueAsyncServer.",
+    "repo": "https://github.com/yangusik/symfony-spawn",
+    "type": "tuned",
+    "engine": "true-async-server"
   },
   "tonic-grpc": {
     "dir": "tonic-grpc",

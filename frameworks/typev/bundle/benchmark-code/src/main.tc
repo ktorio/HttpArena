@@ -99,12 +99,14 @@ fn drainUpload(fd: int, buf: byte[], bufcap: uint, bodyStart: uint, cl: uint, cu
 
 // Serve one connection.
 fn handle_client(fd: int) -> void {
+    // resizeRaw: these buffers are write-before-read (tcp_read fills, parser
+    // reads only up to the filled length), so skip the per-connection zero-fill.
     let buf: byte[] = []
-    buf.resize(BUFCAP)
+    buf.resizeRaw(BUFCAP)
     let tmp: byte[] = []
-    tmp.resize(BUFCAP)
+    tmp.resizeRaw(BUFCAP)
     let obuf: byte[] = []
-    obuf.resize(OBUFCAP)
+    obuf.resizeRaw(OBUFCAP)
     // Parse scratch — created once, reused for every request.
     let req = newReq()
     let chunk = newChunk()
@@ -277,22 +279,11 @@ fn accept_loop() -> void {
 fn main() -> uint {
     println("typev HttpArena server listening on :8080")
 
-    foreach i in 0, 3, 1 {
+    let keepalive = spawn accept_loop()
+    foreach i in 0, 2, 1 {
         spawn accept_loop()
     }
-
-    let server = tcp_listen(PORT, 4096)
-    if server < 0 {
-        println("Failed to start server")
-        return 1u
-    }
-
-    while true {
-        let client = tcp_accept(server)
-        if client >= 0 {
-            spawn handle_client(client)
-        }
-    }
+    let (_r, _s) = keepalive.await()
 
     return 0u
 }

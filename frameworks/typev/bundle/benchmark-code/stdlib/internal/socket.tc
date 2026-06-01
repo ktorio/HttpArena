@@ -234,4 +234,11 @@ extern socket from "stdsocket" = {
      * Returns the number of complete request terminators found.
      */
     fn count_http_terminators(buf: uint[], n: uint) -> uint
+
+    /**
+     * WebSocket Sec-WebSocket-Accept = base64(SHA1(key + GUID)), written as
+     * 28 bytes into `out`. Native — the whole handshake digest in one call.
+     * Returns 0, or -1 if out < 28.
+     */
+    fn socket_ws_accept(key: uint[], start: uint, len: uint, out: uint[]) -> int
 }

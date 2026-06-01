@@ -271,7 +271,7 @@ pub fn main(init: std.process.Init) !void {
     try app_router.get("/baseline2", handleBaseline);
     try app_router.post("/baseline2", handleBaseline);
     try app_router.get("/json/:count", handleJson);
-    try app_router.post("/upload", handleUpload);
+    try app_router.postDiscard("/upload", handleUpload);
 
     if (cfg.workers != 1) {
         var master = try swerver.Master.init(allocator, cfg, app_router, null);

@@ -7,30 +7,25 @@ require 'rack'
 class App
   CONTENT_TYPE = 'Content-Type'
   PLAINTEXT_TYPE = 'text/plain'
-  KNOWN = %w[GET POST PUT DELETE PATCH HEAD OPTIONS TRACE CONNECT].freeze
 
   def call(env)
-    if KNOWN.include?(env['REQUEST_METHOD'])
-      case env['PATH_INFO']
-      when '/pipeline'
-        render_plain 'ok'
-      when '/baseline11'
-        params = Rack::Utils.parse_query(env['QUERY_STRING'])
-        total = params['a'].to_i + params['b'].to_i
-        if env['REQUEST_METHOD'] == 'POST'
-          body = env["rack.input"]&.read
-          total += body.to_i
-        end
-        render_plain total.to_s
-      when '/baseline2'
-        params = Rack::Utils.parse_query(env['QUERY_STRING'])
-        total = params['a'].to_i + params['b'].to_i
-        render_plain total.to_s
-      else
-        [404, {CONTENT_TYPE => PLAINTEXT_TYPE}, ['Not found!']]
+    case env['PATH_INFO']
+    when '/pipeline'
+      render_plain 'ok'
+    when '/baseline11'
+      params = Rack::Utils.parse_query(env['QUERY_STRING'])
+      total = params['a'].to_i + params['b'].to_i
+      if env['REQUEST_METHOD'] == 'POST'
+        body = env["rack.input"]&.read
+        total += body.to_i
       end
+      render_plain total.to_s
+    when '/baseline2'
+      params = Rack::Utils.parse_query(env['QUERY_STRING'])
+      total = params['a'].to_i + params['b'].to_i
+      render_plain total.to_s
     else
-      [405, {CONTENT_TYPE => PLAINTEXT_TYPE}, ['Method Not Allowed']]
+      [404, {CONTENT_TYPE => PLAINTEXT_TYPE}, ['Not found!']]
     end
   end
 

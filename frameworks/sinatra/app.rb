@@ -138,7 +138,7 @@ class App < Sinatra::Base
   def self.get_async_db
     @async_db ||= begin
       return unless ENV['DATABASE_URL']
-      max_connections = ENV.fetch('MAX_THREADS', 4).to_i
+      max_connections = ENV.fetch('MAX_THREADS', 4).to_i + ENV.fetch("MAX_IO_THREADS", 10).to_i
       ConnectionPool.new(size: max_connections, timeout: 5) do
         db = PG.connect(ENV['DATABASE_URL'])
         db.prepare('select', PG_QUERY)

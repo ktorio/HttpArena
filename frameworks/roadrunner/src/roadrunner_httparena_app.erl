@@ -55,7 +55,10 @@ start(_StartType, _StartArgs) ->
                 tls => TlsOpts,
                 %% Listener derives `alpn_preferred_protocols` from
                 %% this list — `h2` preferred, fall back to `http/1.1`.
-                protocols => [http2, http1],
+                %% `http3` co-serves over QUIC on UDP 8443 (same port
+                %% number) and auto-advertises `Alt-Svc: h3=":8443"` on
+                %% the h1/h2 responses. Serves baseline-h3 / static-h3.
+                protocols => [http2, http1, http3],
                 body_buffering => manual
             });
         skip ->

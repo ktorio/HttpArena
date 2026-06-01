@@ -1,7 +1,7 @@
 FROM debian:trixie AS build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates curl xz-utils git libssl-dev dpkg-dev pkg-config python3 \
+        ca-certificates curl xz-utils git libssl-dev zlib1g-dev dpkg-dev pkg-config python3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Zig 0.16.0 stable
@@ -22,7 +22,7 @@ RUN set -eux; \
 
 # Clone swerver library
 WORKDIR /src
-RUN git clone --depth 1 --branch v0.1.0-alpha.6 \
+RUN git clone --depth 1 --branch v0.1.0-alpha.10 \
         https://github.com/justinGrosvenor/swerver.git .
 
 # Symlink OpenSSL for Zig's linker
@@ -46,9 +46,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=build /src/httparena/zig-out/bin/swerver-httparena /usr/local/bin/swerver
 COPY config-h1.json /etc/swerver/config-h1.json
 COPY config-tls.json /etc/swerver/config-tls.json
+COPY config-tls-h1.json /etc/swerver/config-tls-h1.json
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-EXPOSE 8080 8443/tcp 8443/udp
+EXPOSE 8080 8081 8443/tcp 8443/udp
 
 CMD ["/usr/local/bin/entrypoint.sh"]
