@@ -34,6 +34,20 @@ fun main() {
     println("Ktor HttpArena server starting on :8080 (HTTP/1.1) and :8443 (HTTPS/HTTP+2)")
 
     val environment = applicationEnvironment {}
+    val module: Application.() -> Unit = {
+        install(DefaultHeaders) {
+            header("Server", "ktor")
+        }
+        install(Compression) {
+            gzip()
+        }
+        install(ContentNegotiation) {
+            json(appData.json)
+        }
+        install(WebSockets)
+
+        configureRouting(appData)
+    }
     val server = embeddedServer(Netty, environment, {
         enableHttp2 = true
 
@@ -61,20 +75,33 @@ fun main() {
                 host = "0.0.0.0"
             }
         }
-    }) {
-        install(DefaultHeaders) {
-            header("Server", "ktor")
-        }
-        install(Compression) {
-            gzip()
-        }
-        install(ContentNegotiation) {
-            json(appData.json)
-        }
-        install(WebSockets)
+    }, module)
 
-        configureRouting(appData)
-    }
+    // Spin up a second server for H2C
+    embeddedServer(Netty, environment, {
+        enableH2c = true
+
+        connector {
+            port = 8082
+            host = "0.0.0.0"
+        }
+    }) {
+        // Reject any non-HTTP/2 request hitting the H2C connector
+        intercept(ApplicationCallPipeline.Plugins) {
+            val version = call.request.httpVersion
+            if (!version.startsWith("HTTP/2")) {
+                call.response.headers.append(HttpHeaders.Upgrade, "h2c")
+                call.response.headers.append(HttpHeaders.Connection, "Upgrade")
+                call.respond(HttpStatusCode.UpgradeRequired, "HTTP/2 (h2c) required")
+                finish()
+                return@intercept
+            }
+        }
+        // Import the same endpoints for this server
+        module()
+
+    }.start(wait = false)
+
     server.start(wait = true)
 }
 
