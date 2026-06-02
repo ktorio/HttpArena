@@ -21,7 +21,11 @@
     "baseline-h2",
     "static-h2",
     "echo-ws",
-    "echo-ws-pipeline"
+    "echo-ws-pipeline",
+    "crud",
+    "crud-pipeline",
+    "crud-h2",
+    "crud-pipeline-h2"
   ],
   "maintainers": [
     "bjhham"

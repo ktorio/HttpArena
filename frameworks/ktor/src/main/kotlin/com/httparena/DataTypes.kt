@@ -41,7 +41,7 @@ data class JsonResponse(
 
 @Serializable
 data class DbItem(
-    val id: Int,
+    val id: UInt,
     val name: String,
     val category: String,
     val price: Int,
@@ -55,4 +55,34 @@ data class DbItem(
 data class DbResponse(
     val items: List<DbItem>,
     val count: Int
+) {
+    companion object {
+        fun List<DbItem>.toResponse() = DbResponse(this, size)
+    }
+}
+
+@Serializable
+data class CrudListResponse(
+    val items: List<DbItem>,
+    val total: Int,
+    val page: Int,
+    val limit: Int
+)
+
+@Serializable
+data class CrudCreateRequest(
+    val id: UInt,
+    val name: String,
+    val category: String,
+    val price: Int,
+    val quantity: Int,
+    val active: Boolean = false,
+    val tags: List<String> = emptyList()
+)
+
+@Serializable
+data class CrudUpdateRequest(
+    val name: String? = null,
+    val price: Int? = null,
+    val quantity: Int? = null
 )

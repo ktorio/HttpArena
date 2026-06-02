@@ -16,7 +16,7 @@ object ItemTable: UIntIdTable("items") {
     val ratingCount = integer("rating_count")
 
     fun toDbItem(row: ResultRow) = DbItem(
-        id = row[id].value.toInt(),
+        id = row[id].value,
         name = row[name],
         category = row[category],
         price = row[price],

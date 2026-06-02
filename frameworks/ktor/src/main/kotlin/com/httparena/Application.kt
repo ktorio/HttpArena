@@ -1,7 +1,7 @@
 package com.httparena
 
+import com.httparena.DbResponse.Companion.toResponse
 import io.ktor.http.*
-import io.ktor.network.util.DefaultByteBufferPool
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -15,13 +15,18 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.utils.io.*
-import io.ktor.utils.io.pool.useInstance
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
-import kotlinx.io.Buffer
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.between
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.r2dbc.selectAll
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
+import org.jetbrains.exposed.v1.r2dbc.update
+import org.jetbrains.exposed.v1.r2dbc.upsert
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.io.File
 
 fun main() {
@@ -162,7 +167,7 @@ private fun Application.configureRouting(appData: AppData) {
             val max = call.request.queryParameters["max"]?.toIntOrNull() ?: 50
             val limit = (call.request.queryParameters["limit"]?.toIntOrNull() ?: 50).coerceIn(1, 50)
             try {
-                val items = suspendTransaction(appData.postgres) {
+                val items = suspendTransaction(appData.postgres, readOnly = true) {
                     with(ItemTable) {
                         selectAll()
                             .where { price.between(min, max) }
@@ -171,12 +176,7 @@ private fun Application.configureRouting(appData: AppData) {
                             .toList()
                     }
                 }
-                call.respond(
-                    DbResponse(
-                        items = items,
-                        count = items.size
-                    )
-                )
+                call.respond(items.toResponse())
             } catch (e: Exception) {
                 log.error("Failed to load items from DB", e)
                 call.respondBytes("{\"items\":[],\"count\":0}".toByteArray(), ContentType.Application.Json)
@@ -213,5 +213,148 @@ private fun Application.configureRouting(appData: AppData) {
                 send(message)
         }
 
+        /**
+         * CRUD (REST API) — paginated list, cached single-item read, upsert create, partial update.
+         * https://www.http-arena.com/docs/test-profiles/h1/isolated/crud/
+         */
+        crudEndpoints(appData)
+
     }
 }
+
+fun Route.crudEndpoints(appData: AppData, log: Logger = LoggerFactory.getLogger("crudRoutes")): Route =
+    route("/crud/items") {
+        get {
+            val categoryParam = call.request.queryParameters["category"] ?: "electronics"
+            val page = (call.request.queryParameters["page"]?.toIntOrNull() ?: 1).coerceAtLeast(1)
+            val limit = (call.request.queryParameters["limit"]?.toIntOrNull() ?: 10).coerceIn(1, 50)
+            val offset = (page - 1).toLong() * limit
+
+            try {
+                val items = suspendTransaction(appData.postgres, readOnly = true) {
+                    ItemTable.selectAll()
+                        .where { ItemTable.category eq categoryParam }
+                        .orderBy(ItemTable.id, SortOrder.ASC)
+                        .limit(limit).offset(offset)
+                        .map(ItemTable::toDbItem)
+                        .toList()
+                }
+                call.respond(CrudListResponse(items = items, total = items.size, page = page, limit = limit))
+            } catch (e: Exception) {
+                log.error("CRUD list failed", e)
+                call.respond(HttpStatusCode.InternalServerError, "list failed")
+            }
+        }
+
+        get("{id}") {
+            val id = call.pathParameters["id"]?.toUIntOrNull() ?: run {
+                call.respondText("bad id", status = HttpStatusCode.BadRequest)
+                return@get
+            }
+
+            val cached = appData.crudCache.get(id)
+            if (cached != null) {
+                call.response.headers.append("X-Cache", "HIT")
+                call.respondBytes(cached, ContentType.Application.Json)
+                return@get
+            }
+
+            try {
+                val row = suspendTransaction(appData.postgres, readOnly = true) {
+                    ItemTable.selectAll()
+                        .where { ItemTable.id eq id }
+                        .limit(1)
+                        .map(ItemTable::toDbItem)
+                        .firstOrNull()
+                }
+                if (row == null) {
+                    call.respondText("not found", status = HttpStatusCode.NotFound)
+                    return@get
+                }
+                val body = appData.json.encodeToString(row).toByteArray()
+                appData.crudCache.put(id, body)
+                call.response.headers.append("X-Cache", "MISS")
+                call.respondBytes(body, ContentType.Application.Json)
+            } catch (e: Exception) {
+                log.error("CRUD read failed", e)
+                call.respond(HttpStatusCode.InternalServerError, "read failed")
+            }
+        }
+
+        post {
+            val req = try {
+                call.receive<CrudCreateRequest>()
+            } catch (_: Exception) {
+                call.respondText("invalid body", status = HttpStatusCode.UnprocessableEntity)
+                return@post
+            }
+            try {
+                suspendTransaction(appData.postgres) {
+                    ItemTable.upsert(
+                        keys = arrayOf(ItemTable.id),
+                        onUpdateExclude = listOf(ItemTable.ratingScore, ItemTable.ratingCount),
+                    ) {
+                        it[id] = req.id
+                        it[name] = req.name
+                        it[category] = req.category
+                        it[price] = req.price
+                        it[quantity] = req.quantity
+                        it[active] = req.active
+                        it[tags] = req.tags
+                        it[ratingScore] = 0
+                        it[ratingCount] = 0
+                    }
+                }
+                appData.crudCache.invalidate(req.id)
+                val response = DbItem(
+                    id = req.id, name = req.name, category = req.category,
+                    price = req.price, quantity = req.quantity, active = req.active,
+                    tags = req.tags, rating = RatingInfo(0, 0)
+                )
+                call.respond(HttpStatusCode.Created, response)
+            } catch (e: Exception) {
+                log.error("CRUD create failed", e)
+                call.respond(HttpStatusCode.InternalServerError, "create failed")
+            }
+        }
+
+        put("{id}") {
+            val id = call.pathParameters["id"]?.toUIntOrNull() ?: run {
+                call.respondText("bad id", status = HttpStatusCode.BadRequest)
+                return@put
+            }
+            val req = try {
+                call.receive<CrudUpdateRequest>()
+            } catch (_: Exception) {
+                call.respondText("invalid body", status = HttpStatusCode.UnprocessableEntity)
+                return@put
+            }
+            try {
+                val updated = suspendTransaction(appData.postgres, readOnly = false) {
+                    val rows = ItemTable.update({ ItemTable.id eq id }) { stmt ->
+                        req.name?.let { v -> stmt[ItemTable.name] = v }
+                        req.price?.let { v -> stmt[ItemTable.price] = v }
+                        req.quantity?.let { v -> stmt[ItemTable.quantity] = v }
+                    }
+                    if (rows == 0) {
+                        null
+                    } else {
+                        ItemTable.selectAll()
+                            .where { ItemTable.id eq id }
+                            .limit(1)
+                            .map(ItemTable::toDbItem)
+                            .firstOrNull()
+                    }
+                }
+                appData.crudCache.invalidate(id)
+                if (updated == null) {
+                    call.respondText("not found", status = HttpStatusCode.NotFound)
+                } else {
+                    call.respond(HttpStatusCode.OK, updated)
+                }
+            } catch (e: Exception) {
+                log.error("CRUD update failed", e)
+                call.respond(HttpStatusCode.InternalServerError, "update failed")
+            }
+        }
+    }

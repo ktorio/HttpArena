@@ -22,6 +22,39 @@ import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.security.spec.PKCS8EncodedKeySpec
 import java.util.Base64
+import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * Cache entry holding pre-serialized JSON bytes and an absolute expiration time
+ * (in nanos from [System.nanoTime]).  Used by the CRUD single-item read endpoint.
+ */
+class CacheEntry(val body: ByteArray, val expiresAt: Long)
+
+/**
+ * Simple in-process cache-aside with 200 ms absolute TTL for CRUD single-item reads.
+ * Stale entries are removed lazily on access.
+ */
+class CrudCache(private val ttlMillis: Long = 200) {
+    private val map = ConcurrentHashMap<UInt, CacheEntry>()
+
+    fun get(id: UInt): ByteArray? {
+        val entry = map[id] ?: return null
+        if (entry.expiresAt <= System.nanoTime()) {
+            map.remove(id, entry)
+            return null
+        }
+        return entry.body
+    }
+
+    fun put(id: UInt, body: ByteArray) {
+        val expiresAt = System.nanoTime() + ttlMillis * 1_000_000L
+        map[id] = CacheEntry(body, expiresAt)
+    }
+
+    fun invalidate(id: UInt) {
+        map.remove(id)
+    }
+}
 
 object DevNull : RawSink {
     override fun close() {}
@@ -43,6 +76,12 @@ class AppData {
     private val datasetFile = File(System.getenv("DATASET_PATH") ?: "/data/dataset.json")
 
     val json = Json { ignoreUnknownKeys = true }
+
+    /**
+     * Cache-aside store used by the CRUD single-item read endpoint
+     * (200 ms absolute TTL, in-process).
+     */
+    val crudCache = CrudCache(ttlMillis = 200)
 
     /**
      * Dataset from file.  Used in JSON endpoints.
@@ -71,10 +110,11 @@ class AppData {
                     .password(if (userInfo.size > 1) userInfo[1] else "")
                     .build()
             )
+            val maxConn = System.getenv("DATABASE_MAX_CONN")?.toIntOrNull() ?: (cpuCores * 2)
             val pool = ConnectionPool(
                 ConnectionPoolConfiguration.builder(factory)
-                    .initialSize(cpuCores * 2)
-                    .maxSize(cpuCores * 2)
+                    .initialSize(maxConn)
+                    .maxSize(maxConn)
                     .validationQuery("")
                     .validationDepth(ValidationDepth.LOCAL)
                     .acquireRetry(0)
@@ -85,7 +125,6 @@ class AppData {
                 databaseConfig = R2dbcDatabaseConfig.Builder().apply {
                     explicitDialect = PostgreSQLDialect()
                     defaultR2dbcIsolationLevel = IsolationLevel.READ_COMMITTED
-                    defaultReadOnly = true
                 }
             )
         }
