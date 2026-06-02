@@ -16,23 +16,11 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.utils.io.*
-import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
-import kotlinx.html.body
-import kotlinx.html.head
-import kotlinx.html.table
-import kotlinx.html.td
-import kotlinx.html.th
-import kotlinx.html.title
-import kotlinx.html.tr
-import org.jetbrains.exposed.v1.core.SortOrder
-import org.jetbrains.exposed.v1.core.between
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.r2dbc.selectAll
+import kotlinx.coroutines.flow.*
+import kotlinx.html.*
+import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
-import org.jetbrains.exposed.v1.r2dbc.update
-import org.jetbrains.exposed.v1.r2dbc.upsert
+import org.jetbrains.exposed.v1.r2dbc.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -295,11 +283,6 @@ private fun Application.configureRouting(appData: AppData) {
 
     }
 }
-
-private val RUNTIME_FORTUNE = Fortune(
-    id = 0,
-    message = "Additional fortune added at request time."
-)
 
 fun Route.crudEndpoints(appData: AppData, log: Logger = LoggerFactory.getLogger("crudRoutes")): Route =
     route("/crud/items") {

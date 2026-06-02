@@ -1,19 +1,14 @@
 plugins {
-    kotlin("jvm") version "2.3.0"
-    kotlin("plugin.serialization") version "2.3.0"
-    id("io.ktor.plugin") version "3.4.1"
-    application
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
+    alias(ktorLibs.plugins.ktor)
 }
 
 group = "com.httparena"
 version = "1.0.0"
 
 application {
-    mainClass.set("com.httparena.ApplicationKt")
-}
-
-repositories {
-    mavenCentral()
+    mainClass = "com.httparena.ApplicationKt"
 }
 
 dependencies {
@@ -29,9 +24,9 @@ dependencies {
     implementation(libs.exposed.core)
     implementation(libs.exposed.r2dbc)
     implementation(libs.exposed.json)
+    implementation(libs.logback.classic)
     implementation(libs.postgresql)
     implementation(libs.r2dbc.pool)
-    implementation(libs.logback.classic)
 }
 
 ktor {

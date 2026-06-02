@@ -1,4 +1,9 @@
-rootProject.name = "ktor-httparena"
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
 
 dependencyResolutionManagement {
     repositories {
@@ -8,3 +13,5 @@ dependencyResolutionManagement {
         create("ktorLibs").from("io.ktor:ktor-version-catalog:3.5.0")
     }
 }
+
+rootProject.name = "ktor-httparena"

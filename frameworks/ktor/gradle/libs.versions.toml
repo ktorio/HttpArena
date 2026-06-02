@@ -1,5 +1,6 @@
 [versions]
 exposed = "1.2.0"
+kotlin = "2.3.21"
 
 [libraries]
 logback-classic = { module = "ch.qos.logback:logback-classic", version = "1.5.15" }
@@ -10,3 +11,7 @@ exposed-r2dbc = { module = "org.jetbrains.exposed:exposed-r2dbc", version.ref = 
 exposed-json = { module = "org.jetbrains.exposed:exposed-json", version.ref = "exposed" }
 postgresql = { module = "org.postgresql:r2dbc-postgresql", version = "1.1.1.RELEASE" }
 r2dbc-pool = { module = "io.r2dbc:r2dbc-pool", version = "1.0.2.RELEASE" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

@@ -64,6 +64,11 @@ object DevNull : RawSink {
     }
 }
 
+val RUNTIME_FORTUNE = Fortune(
+    id = 0,
+    message = "Additional fortune added at request time."
+)
+
 const val CERT_PATH = "/certs/server.crt"
 const val KEY_PATH = "/certs/server.key"
 const val KEY_ALIAS = "server"
