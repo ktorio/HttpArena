@@ -24,7 +24,8 @@
     "json-h2c",
     "echo-ws",
     "echo-ws-pipeline",
-    "crud"
+    "crud",
+    "fortunes"
   ],
   "maintainers": [
     "bjhham"

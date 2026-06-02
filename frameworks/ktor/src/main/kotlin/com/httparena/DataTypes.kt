@@ -86,3 +86,8 @@ data class CrudUpdateRequest(
     val price: Int? = null,
     val quantity: Int? = null
 )
+
+data class Fortune(
+    val id: Int,
+    val message: String
+)

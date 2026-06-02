@@ -24,6 +24,7 @@ dependencies {
     implementation(ktorLibs.server.contentNegotiation)
     implementation(ktorLibs.serialization.kotlinx.json)
     implementation(ktorLibs.server.websockets)
+    implementation(ktorLibs.server.htmlBuilder)
 
     implementation(libs.exposed.core)
     implementation(libs.exposed.r2dbc)

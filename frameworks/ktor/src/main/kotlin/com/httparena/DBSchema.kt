@@ -2,6 +2,7 @@ package com.httparena
 
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.dao.id.UIntIdTable
 import org.jetbrains.exposed.v1.json.jsonb
 
@@ -27,5 +28,15 @@ object ItemTable: UIntIdTable("items") {
             row[ratingScore],
             row[ratingCount]
         )
+    )
+}
+
+object FortuneTable : Table("fortune") {
+    val id = integer("id")
+    val message = text("message")
+
+    fun toFortune(row: ResultRow) = Fortune(
+        id = row[id],
+        message = row[message]
     )
 }

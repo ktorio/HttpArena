@@ -5,6 +5,7 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
+import io.ktor.server.html.*
 import io.ktor.server.http.content.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.compression.*
@@ -18,6 +19,13 @@ import io.ktor.utils.io.*
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
+import kotlinx.html.body
+import kotlinx.html.head
+import kotlinx.html.table
+import kotlinx.html.td
+import kotlinx.html.th
+import kotlinx.html.title
+import kotlinx.html.tr
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.between
 import org.jetbrains.exposed.v1.core.eq
@@ -246,8 +254,52 @@ private fun Application.configureRouting(appData: AppData) {
          */
         crudEndpoints(appData)
 
+        /**
+         * Fortunes (template-engine benchmark) — kotlinx.html DSL.
+         * https://www.http-arena.com/docs/test-profiles/h1/isolated/fortunes/
+         */
+        get("/fortunes") {
+            val fortunes = mutableListOf<Fortune>()
+            try {
+                suspendTransaction(appData.postgres, readOnly = true) {
+                    FortuneTable.selectAll()
+                        .map(FortuneTable::toFortune)
+                        .toList(fortunes)
+                }
+            } catch (e: Exception) {
+                log.error("Failed to load fortunes from DB", e)
+                call.respond(HttpStatusCode.InternalServerError, "fortunes failed")
+                return@get
+            }
+            fortunes.add(RUNTIME_FORTUNE)
+            fortunes.sortBy { it.message }
+
+            call.respondHtml(HttpStatusCode.OK) {
+                head { title { +"Fortunes" } }
+                body {
+                    table {
+                        tr {
+                            th { +"id" }
+                            th { +"message" }
+                        }
+                        for ((id, message) in fortunes) {
+                            tr {
+                                td { +id.toString() }
+                                td { +message }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
     }
 }
+
+private val RUNTIME_FORTUNE = Fortune(
+    id = 0,
+    message = "Additional fortune added at request time."
+)
 
 fun Route.crudEndpoints(appData: AppData, log: Logger = LoggerFactory.getLogger("crudRoutes")): Route =
     route("/crud/items") {
