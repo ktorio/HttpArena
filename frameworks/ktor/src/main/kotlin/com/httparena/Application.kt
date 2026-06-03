@@ -18,11 +18,12 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.utils.io.*
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.html.*
 import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
-import org.jetbrains.exposed.v1.r2dbc.*
+import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -189,13 +190,14 @@ private fun Application.configureRouting(appData: ArenaApplicationDeps) {
             val max = call.request.queryParameters["max"]?.toIntOrNull() ?: 50
             val limit = (call.request.queryParameters["limit"]?.toIntOrNull() ?: 50).coerceIn(1, 50)
             try {
-                val items = suspendTransaction(appData.postgres, readOnly = true) {
-                    with(ItemTable) {
-                        selectAll()
-                            .where { price.between(min, max) }
-                            .limit(limit)
-                            .map(::toDbItem)
-                            .toList()
+                val items = withContext(Dispatchers.IO) {
+                    transaction(appData.postgres, readOnly = true) {
+                        with(ItemTable) {
+                            selectAll()
+                                .where { price.between(min, max) }
+                                .limit(limit)
+                                .map(::toDbItem)
+                        }
                     }
                 }
                 call.respond(items.toResponse())
@@ -248,10 +250,12 @@ private fun Application.configureRouting(appData: ArenaApplicationDeps) {
         get("/fortunes") {
             val fortunes = mutableListOf<Fortune>()
             try {
-                suspendTransaction(appData.postgres, readOnly = true) {
-                    FortuneTable.selectAll()
-                        .map(FortuneTable::toFortune)
-                        .toList(fortunes)
+                withContext(Dispatchers.IO) {
+                    transaction(appData.postgres, readOnly = true) {
+                        FortuneTable.selectAll()
+                            .map(FortuneTable::toFortune)
+                            .toCollection(fortunes)
+                    }
                 }
             } catch (e: Exception) {
                 log.error("Failed to load fortunes from DB", e)
@@ -292,13 +296,14 @@ fun Route.crudEndpoints(appData: ArenaApplicationDeps, log: Logger = LoggerFacto
             val offset = (page - 1).toLong() * limit
 
             try {
-                val items = suspendTransaction(appData.postgres, readOnly = true) {
-                    ItemTable.selectAll()
-                        .where { ItemTable.category eq categoryParam }
-                        .orderBy(ItemTable.id, SortOrder.ASC)
-                        .limit(limit).offset(offset)
-                        .map(ItemTable::toDbItem)
-                        .toList()
+                val items = withContext(Dispatchers.IO) {
+                    transaction(appData.postgres, readOnly = true) {
+                        ItemTable.selectAll()
+                            .where { ItemTable.category eq categoryParam }
+                            .orderBy(ItemTable.id, SortOrder.ASC)
+                            .limit(limit).offset(offset)
+                            .map(ItemTable::toDbItem)
+                    }
                 }
                 call.respond(CrudListResponse(items = items, total = items.size, page = page, limit = limit))
             } catch (e: Exception) {
@@ -321,12 +326,14 @@ fun Route.crudEndpoints(appData: ArenaApplicationDeps, log: Logger = LoggerFacto
             }
 
             try {
-                val row = suspendTransaction(appData.postgres, readOnly = true) {
-                    ItemTable.selectAll()
-                        .where { ItemTable.id eq id }
-                        .limit(1)
-                        .map(ItemTable::toDbItem)
-                        .firstOrNull()
+                val row = withContext(Dispatchers.IO) {
+                    transaction(appData.postgres, readOnly = true) {
+                        ItemTable.selectAll()
+                            .where { ItemTable.id eq id }
+                            .limit(1)
+                            .map(ItemTable::toDbItem)
+                            .firstOrNull()
+                    }
                 }
                 if (row == null) {
                     call.respondText("not found", status = HttpStatusCode.NotFound)
@@ -350,20 +357,22 @@ fun Route.crudEndpoints(appData: ArenaApplicationDeps, log: Logger = LoggerFacto
                 return@post
             }
             try {
-                suspendTransaction(appData.postgres) {
-                    ItemTable.upsert(
-                        keys = arrayOf(ItemTable.id),
-                        onUpdateExclude = listOf(ItemTable.ratingScore, ItemTable.ratingCount),
-                    ) {
-                        it[id] = req.id
-                        it[name] = req.name
-                        it[category] = req.category
-                        it[price] = req.price
-                        it[quantity] = req.quantity
-                        it[active] = req.active
-                        it[tags] = req.tags
-                        it[ratingScore] = 0
-                        it[ratingCount] = 0
+                withContext(Dispatchers.IO) {
+                    transaction(appData.postgres) {
+                        ItemTable.upsert(
+                            keys = arrayOf(ItemTable.id),
+                            onUpdateExclude = listOf(ItemTable.ratingScore, ItemTable.ratingCount),
+                        ) {
+                            it[id] = req.id
+                            it[name] = req.name
+                            it[category] = req.category
+                            it[price] = req.price
+                            it[quantity] = req.quantity
+                            it[active] = req.active
+                            it[tags] = req.tags
+                            it[ratingScore] = 0
+                            it[ratingCount] = 0
+                        }
                     }
                 }
                 appData.crudCache.invalidate(req.id)
@@ -391,20 +400,22 @@ fun Route.crudEndpoints(appData: ArenaApplicationDeps, log: Logger = LoggerFacto
                 return@put
             }
             try {
-                val updated = suspendTransaction(appData.postgres, readOnly = false) {
-                    val rows = ItemTable.update({ ItemTable.id eq id }) { stmt ->
-                        req.name?.let { v -> stmt[ItemTable.name] = v }
-                        req.price?.let { v -> stmt[ItemTable.price] = v }
-                        req.quantity?.let { v -> stmt[ItemTable.quantity] = v }
-                    }
-                    if (rows == 0) {
-                        null
-                    } else {
-                        ItemTable.selectAll()
-                            .where { ItemTable.id eq id }
-                            .limit(1)
-                            .map(ItemTable::toDbItem)
-                            .firstOrNull()
+                val updated = withContext(Dispatchers.IO) {
+                    transaction(appData.postgres) {
+                        val rows = ItemTable.update({ ItemTable.id eq id }) { stmt ->
+                            req.name?.let { v -> stmt[ItemTable.name] = v }
+                            req.price?.let { v -> stmt[ItemTable.price] = v }
+                            req.quantity?.let { v -> stmt[ItemTable.quantity] = v }
+                        }
+                        if (rows == 0) {
+                            null
+                        } else {
+                            ItemTable.selectAll()
+                                .where { ItemTable.id eq id }
+                                .limit(1)
+                                .map(ItemTable::toDbItem)
+                                .firstOrNull()
+                        }
                     }
                 }
                 appData.crudCache.invalidate(id)

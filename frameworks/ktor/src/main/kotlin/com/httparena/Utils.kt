@@ -1,18 +1,13 @@
 package com.httparena
 
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import io.ktor.utils.io.core.discard
-import io.r2dbc.pool.ConnectionPool
-import io.r2dbc.pool.ConnectionPoolConfiguration
-import io.r2dbc.postgresql.PostgresqlConnectionConfiguration
-import io.r2dbc.postgresql.PostgresqlConnectionFactory
-import io.r2dbc.spi.IsolationLevel
-import io.r2dbc.spi.ValidationDepth
 import kotlinx.io.Buffer
 import kotlinx.io.RawSink
 import kotlinx.serialization.json.Json
-import org.jetbrains.exposed.v1.core.vendors.PostgreSQLDialect
-import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
-import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabaseConfig
+import org.jetbrains.exposed.v1.core.DatabaseConfig
+import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
 import java.net.URI
 import java.security.KeyFactory
@@ -20,6 +15,7 @@ import java.security.KeyStore
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.security.spec.PKCS8EncodedKeySpec
+import java.sql.Connection
 import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 
@@ -85,38 +81,33 @@ object ArenaApplicationDepsFactory {
             json.decodeFromString(it.readText())
         } ?: emptyList()
 
-        val postgres: R2dbcDatabase? = System.getenv("DATABASE_URL")?.let { dbUrl ->
+        val postgres: Database? = System.getenv("DATABASE_URL")?.let { dbUrl ->
             runCatching {
                 val uri = URI(dbUrl.replace("postgres://", "postgresql://"))
                 val host = uri.host
                 val port = if (uri.port > 0) uri.port else 5432
                 val database = uri.path.removePrefix("/")
                 val userInfo = uri.userInfo.split(":")
-
-                val factory = PostgresqlConnectionFactory(
-                    PostgresqlConnectionConfiguration.builder()
-                        .host(host)
-                        .port(port)
-                        .database(database)
-                        .username(userInfo[0])
-                        .password(if (userInfo.size > 1) userInfo[1] else "")
-                        .build()
-                )
+                val user = userInfo[0]
+                val password = if (userInfo.size > 1) userInfo[1] else ""
                 val maxConn = System.getenv("DATABASE_MAX_CONN")?.toIntOrNull() ?: (cpuCores * 2)
-                val pool = ConnectionPool(
-                    ConnectionPoolConfiguration.builder(factory)
-                        .initialSize(maxConn)
-                        .maxSize(maxConn)
-                        .validationQuery("")
-                        .validationDepth(ValidationDepth.LOCAL)
-                        .acquireRetry(0)
-                        .build()
-                )
-                R2dbcDatabase.connect(
-                    connectionFactory = pool,
-                    databaseConfig = R2dbcDatabaseConfig.Builder().apply {
-                        explicitDialect = PostgreSQLDialect()
-                        defaultR2dbcIsolationLevel = IsolationLevel.READ_COMMITTED
+
+                val hikariConfig = HikariConfig().apply {
+                    jdbcUrl = "jdbc:postgresql://$host:$port/$database"
+                    driverClassName = "org.postgresql.Driver"
+                    username = user
+                    this.password = password
+                    maximumPoolSize = maxConn
+                    minimumIdle = maxConn
+                    isAutoCommit = false
+                    transactionIsolation = "TRANSACTION_READ_COMMITTED"
+                    validate()
+                }
+                val dataSource = HikariDataSource(hikariConfig)
+                Database.connect(
+                    datasource = dataSource,
+                    databaseConfig = DatabaseConfig {
+                        defaultIsolationLevel = Connection.TRANSACTION_READ_COMMITTED
                     }
                 )
             }
@@ -164,6 +155,6 @@ class ArenaApplicationDeps(
     val json: Json,
     val crudCache: CrudCache,
     val dataset: List<DatasetItem>,
-    val postgres: R2dbcDatabase?,
+    val postgres: Database?,
     val keyStore: KeyStore?,
 )
