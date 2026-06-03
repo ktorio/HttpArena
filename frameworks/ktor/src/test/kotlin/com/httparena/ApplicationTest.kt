@@ -1,17 +1,12 @@
 package com.httparena
 
 import io.ktor.client.request.*
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.contentType
-import io.ktor.server.testing.ApplicationTestBuilder
-import io.ktor.server.testing.testApplication
+import io.ktor.client.statement.*
+import io.ktor.http.*
+import io.ktor.server.testing.*
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 class ApplicationTest {
 
@@ -263,12 +258,4 @@ class ApplicationTest {
         assertEquals(HttpStatusCode.NotFound.value, response.status.value)
     }
 
-    @Test
-    fun serverHeaderTest() = testApplication {
-        setup()
-        val response = client.get("/pipeline")
-        assertEquals("ktor", response.headers["Server"])
-        assertNotNull(response.headers["Date"])
-        assertTrue(response.status.value in 200..299)
-    }
 }

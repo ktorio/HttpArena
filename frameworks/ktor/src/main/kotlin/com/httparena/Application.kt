@@ -2,8 +2,7 @@ package com.httparena
 
 import com.httparena.DbResponse.Companion.toResponse
 import io.ktor.http.*
-import io.ktor.http.content.ByteArrayContent
-import io.ktor.http.content.TextContent
+import io.ktor.http.content.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -12,18 +11,24 @@ import io.ktor.server.http.content.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.compression.*
 import io.ktor.server.plugins.contentnegotiation.*
-import io.ktor.server.plugins.defaultheaders.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.utils.io.*
+import io.netty.channel.ChannelOption
+import io.netty.channel.WriteBufferWaterMark
+import io.netty.handler.flush.FlushConsolidationHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.html.*
-import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.between
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
+import org.jetbrains.exposed.v1.jdbc.upsert
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -32,8 +37,27 @@ fun main() {
     println("Ktor HttpArena server starting on :8080 (HTTP/1.1) and :8443 (HTTPS/HTTP+2)")
     val deps = ArenaApplicationDepsFactory.load()
     val environment = applicationEnvironment {}
+    val tweakNettyParameters: NettyApplicationEngine.Configuration.() -> Unit = {
+        shareWorkGroup = true
+        runningLimit = 64
+
+        configureBootstrap = {
+            childOption(ChannelOption.TCP_NODELAY, true)
+            childOption(ChannelOption.SO_REUSEADDR, true)
+            childOption(
+                ChannelOption.WRITE_BUFFER_WATER_MARK,
+                WriteBufferWaterMark(64 * 1024, 256 * 1024)
+            )
+        }
+
+        channelPipelineConfig = {
+            addFirst("flush-consolidation", FlushConsolidationHandler(16, true))
+        }
+    }
+
     val server = embeddedServer(Netty, environment, {
         enableHttp2 = true
+        tweakNettyParameters()
 
         connector {
             port = 8080
@@ -66,6 +90,7 @@ fun main() {
     // Spin up a second server for H2C
     embeddedServer(Netty, environment, {
         enableH2c = true
+        tweakNettyParameters()
 
         connector {
             port = 8082
@@ -92,15 +117,6 @@ fun main() {
 }
 
 internal fun Application.mainModule(appData: ArenaApplicationDeps) {
-    install(DefaultHeaders) {
-        header("Server", "ktor")
-    }
-    install(Compression) {
-        gzip()
-    }
-    install(ContentNegotiation) {
-        json(appData.json)
-    }
     install(WebSockets)
 
     configureRouting(appData)
@@ -109,10 +125,22 @@ internal fun Application.mainModule(appData: ArenaApplicationDeps) {
 private fun Application.configureRouting(appData: ArenaApplicationDeps) {
     val pipelineResponse = ByteArrayContent("ok".toByteArray(), ContentType.Text.Plain)
 
-    fun ApplicationCall.sumQueryParams(): Long =
-        request.queryParameters.entries().sumOf { (_, v) ->
-            v.sumOf { it.toLongOrNull() ?: 0L }
+    fun ApplicationCall.sumQueryParams(): Long {
+        var start = 0
+        var sum = 0L
+        for (i in request.uri.indices) {
+            when(request.uri[i]) {
+                '=' -> {
+                    start = i + 1
+                }
+                '&' -> {
+                    val v = request.uri.substring(start, i)
+                    sum += v.toLongOrNull() ?: 0
+                }
+            }
         }
+        return sum + (request.uri.substring(start).toLongOrNull() ?: 0)
+    }
 
     suspend fun ApplicationCall.respondNumber(long: Long) =
         respond(TextContent(long.toString(), ContentType.Text.Plain))
@@ -161,49 +189,62 @@ private fun Application.configureRouting(appData: ArenaApplicationDeps) {
          * https://www.http-arena.com/docs/test-profiles/h1/isolated/json-tls/
          * https://www.http-arena.com/docs/test-profiles/h1/isolated/json-compressed/
          */
-        get("/json/{count}") {
-            if (appData.dataset.isEmpty()) {
-                call.respondText("Dataset not loaded", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
-                return@get
+        route("/json/{count}") {
+            install(Compression) {
+                gzip()
             }
-            var count = call.pathParameters["count"]?.toIntOrNull() ?: 0
-            if (count < 0) count = 0
-            if (count > appData.dataset.size) count = appData.dataset.size
-            val m = call.request.queryParameters["m"]?.toIntOrNull() ?: 1
-            val processed = appData.dataset.take(count).map { d ->
-                ProcessedItem(
-                    id = d.id, name = d.name, category = d.category,
-                    price = d.price, quantity = d.quantity, active = d.active,
-                    tags = d.tags, rating = d.rating,
-                    total = d.price.toLong() * d.quantity * m
-                )
+            install(ContentNegotiation) {
+                json(appData.json)
             }
-            call.respond(JsonResponse(items = processed, count = count))
+            get {
+                if (appData.dataset.isEmpty()) {
+                    call.respondText("Dataset not loaded", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
+                    return@get
+                }
+                var count = call.pathParameters["count"]?.toIntOrNull() ?: 0
+                if (count < 0) count = 0
+                if (count > appData.dataset.size) count = appData.dataset.size
+                val m = call.request.queryParameters["m"]?.toIntOrNull() ?: 1
+                val processed = appData.dataset.take(count).map { d ->
+                    ProcessedItem(
+                        id = d.id, name = d.name, category = d.category,
+                        price = d.price, quantity = d.quantity, active = d.active,
+                        tags = d.tags, rating = d.rating,
+                        total = d.price.toLong() * d.quantity * m
+                    )
+                }
+                call.respond(JsonResponse(items = processed, count = count))
+            }
         }
 
         /**
          * Async DB
          * https://www.http-arena.com/docs/test-profiles/h1/isolated/async-database/
          */
-        get("/async-db") {
-            val min = call.request.queryParameters["min"]?.toIntOrNull() ?: 10
-            val max = call.request.queryParameters["max"]?.toIntOrNull() ?: 50
-            val limit = (call.request.queryParameters["limit"]?.toIntOrNull() ?: 50).coerceIn(1, 50)
-            try {
-                val items = withContext(Dispatchers.IO) {
-                    transaction(appData.postgres, readOnly = true) {
-                        with(ItemTable) {
-                            selectAll()
-                                .where { price.between(min, max) }
-                                .limit(limit)
-                                .map(::toDbItem)
+        route("/async-db") {
+            install(ContentNegotiation) {
+                json(appData.json)
+            }
+            get {
+                val min = call.request.queryParameters["min"]?.toIntOrNull() ?: 10
+                val max = call.request.queryParameters["max"]?.toIntOrNull() ?: 50
+                val limit = (call.request.queryParameters["limit"]?.toIntOrNull() ?: 50).coerceIn(1, 50)
+                try {
+                    val items = withContext(Dispatchers.IO) {
+                        transaction(appData.postgres, readOnly = true) {
+                            with(ItemTable) {
+                                selectAll()
+                                    .where { price.between(min, max) }
+                                    .limit(limit)
+                                    .map(::toDbItem)
+                            }
                         }
                     }
+                    call.respond(items.toResponse())
+                } catch (e: Exception) {
+                    log.error("Failed to load items from DB", e)
+                    call.respondText("{\"items\":[],\"count\":0}", ContentType.Application.Json)
                 }
-                call.respond(items.toResponse())
-            } catch (e: Exception) {
-                log.error("Failed to load items from DB", e)
-                call.respondText("{\"items\":[],\"count\":0}", ContentType.Application.Json)
             }
         }
 
@@ -289,6 +330,9 @@ private fun Application.configureRouting(appData: ArenaApplicationDeps) {
 
 fun Route.crudEndpoints(appData: ArenaApplicationDeps, log: Logger = LoggerFactory.getLogger("crudRoutes")): Route =
     route("/crud/items") {
+        install(ContentNegotiation) {
+            json(appData.json)
+        }
         get {
             val categoryParam = call.request.queryParameters["category"] ?: "electronics"
             val page = (call.request.queryParameters["page"]?.toIntOrNull() ?: 1).coerceAtLeast(1)

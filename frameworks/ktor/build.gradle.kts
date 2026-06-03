@@ -27,6 +27,7 @@ dependencies {
     implementation(libs.logback.classic)
     implementation(libs.postgresql)
     implementation(libs.hikaricp)
+    runtimeOnly(libs.netty.native.epoll)
 
     testImplementation(kotlin("test"))
     testImplementation(ktorLibs.server.testHost)
