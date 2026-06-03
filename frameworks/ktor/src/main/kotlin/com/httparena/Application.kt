@@ -37,27 +37,9 @@ fun main() {
     println("Ktor HttpArena server starting on :8080 (HTTP/1.1) and :8443 (HTTPS/HTTP+2)")
     val deps = ArenaApplicationDepsFactory.load()
     val environment = applicationEnvironment {}
-    val tweakNettyParameters: NettyApplicationEngine.Configuration.() -> Unit = {
-        shareWorkGroup = true
-        runningLimit = 64
-
-        configureBootstrap = {
-            childOption(ChannelOption.TCP_NODELAY, true)
-            childOption(ChannelOption.SO_REUSEADDR, true)
-            childOption(
-                ChannelOption.WRITE_BUFFER_WATER_MARK,
-                WriteBufferWaterMark(64 * 1024, 256 * 1024)
-            )
-        }
-
-        channelPipelineConfig = {
-            addFirst("flush-consolidation", FlushConsolidationHandler(16, true))
-        }
-    }
 
     val server = embeddedServer(Netty, environment, {
         enableHttp2 = true
-        tweakNettyParameters()
 
         connector {
             port = 8080
@@ -90,7 +72,6 @@ fun main() {
     // Spin up a second server for H2C
     embeddedServer(Netty, environment, {
         enableH2c = true
-        tweakNettyParameters()
 
         connector {
             port = 8082
