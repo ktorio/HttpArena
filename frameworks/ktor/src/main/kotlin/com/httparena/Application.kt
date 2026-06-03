@@ -2,6 +2,8 @@ package com.httparena
 
 import com.httparena.DbResponse.Companion.toResponse
 import io.ktor.http.*
+import io.ktor.http.content.ByteArrayContent
+import io.ktor.http.content.TextContent
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -104,11 +106,15 @@ internal fun Application.mainModule(appData: ArenaApplicationDeps) {
 }
 
 private fun Application.configureRouting(appData: ArenaApplicationDeps) {
+    val pipelineResponse = ByteArrayContent("ok".toByteArray(), ContentType.Text.Plain)
 
     fun ApplicationCall.sumQueryParams(): Long =
         request.queryParameters.entries().sumOf { (_, v) ->
             v.sumOf { it.toLongOrNull() ?: 0L }
         }
+
+    suspend fun ApplicationCall.respondNumber(long: Long) =
+        respond(TextContent(long.toString(), ContentType.Text.Plain))
 
     routing {
         /**
@@ -116,7 +122,7 @@ private fun Application.configureRouting(appData: ArenaApplicationDeps) {
          * https://www.http-arena.com/docs/test-profiles/h1/isolated/pipelined/
          */
         get("/pipeline") {
-            call.respondText("ok", ContentType.Text.Plain)
+            call.respond(pipelineResponse)
         }
 
         /**
@@ -124,10 +130,7 @@ private fun Application.configureRouting(appData: ArenaApplicationDeps) {
          * https://www.http-arena.com/docs/test-profiles/h1/isolated/baseline/
          */
         get("/baseline11") {
-            call.respondText(
-                call.sumQueryParams().toString(),
-                ContentType.Text.Plain
-            )
+            call.respondNumber(call.sumQueryParams())
         }
 
         /**
@@ -140,10 +143,7 @@ private fun Application.configureRouting(appData: ArenaApplicationDeps) {
                 call.respondText(sum.toString(), ContentType.Text.Plain)
                 return@post
             }
-            call.respondText(
-                (sum + body).toString(),
-                ContentType.Text.Plain
-            )
+            call.respondNumber(sum + body)
         }
 
         /**
@@ -151,10 +151,7 @@ private fun Application.configureRouting(appData: ArenaApplicationDeps) {
          * https://www.http-arena.com/docs/test-profiles/h1/isolated/baseline/
          */
         get("/baseline2") {
-            call.respondText(
-                call.sumQueryParams().toString(),
-                ContentType.Text.Plain
-            )
+            call.respondNumber(call.sumQueryParams())
         }
 
         /**
@@ -204,7 +201,7 @@ private fun Application.configureRouting(appData: ArenaApplicationDeps) {
                 call.respond(items.toResponse())
             } catch (e: Exception) {
                 log.error("Failed to load items from DB", e)
-                call.respondBytes("{\"items\":[],\"count\":0}".toByteArray(), ContentType.Application.Json)
+                call.respondText("{\"items\":[],\"count\":0}", ContentType.Application.Json)
             }
         }
 
