@@ -26,24 +26,9 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 fun main() {
-    val appData = AppData()
     println("Ktor HttpArena server starting on :8080 (HTTP/1.1) and :8443 (HTTPS/HTTP+2)")
-
+    val deps = ArenaApplicationDepsFactory.load()
     val environment = applicationEnvironment {}
-    val module: Application.() -> Unit = {
-        install(DefaultHeaders) {
-            header("Server", "ktor")
-        }
-        install(Compression) {
-            gzip()
-        }
-        install(ContentNegotiation) {
-            json(appData.json)
-        }
-        install(WebSockets)
-
-        configureRouting(appData)
-    }
     val server = embeddedServer(Netty, environment, {
         enableHttp2 = true
 
@@ -51,7 +36,7 @@ fun main() {
             port = 8080
             host = "0.0.0.0"
         }
-        appData.keystore?.let { keyStore ->
+        deps.keyStore?.let { keyStore ->
             sslConnector(
                 keyStore = keyStore,
                 keyAlias = KEY_ALIAS,
@@ -71,7 +56,9 @@ fun main() {
                 host = "0.0.0.0"
             }
         }
-    }, module)
+    }) {
+        mainModule(deps)
+    }
 
     // Spin up a second server for H2C
     embeddedServer(Netty, environment, {
@@ -94,14 +81,29 @@ fun main() {
             }
         }
         // Import the same endpoints for this server
-        module()
+        mainModule(deps)
 
     }.start(wait = false)
 
     server.start(wait = true)
 }
 
-private fun Application.configureRouting(appData: AppData) {
+internal fun Application.mainModule(appData: ArenaApplicationDeps) {
+    install(DefaultHeaders) {
+        header("Server", "ktor")
+    }
+    install(Compression) {
+        gzip()
+    }
+    install(ContentNegotiation) {
+        json(appData.json)
+    }
+    install(WebSockets)
+
+    configureRouting(appData)
+}
+
+private fun Application.configureRouting(appData: ArenaApplicationDeps) {
 
     fun ApplicationCall.sumQueryParams(): Long =
         request.queryParameters.entries().sumOf { (_, v) ->
@@ -284,7 +286,7 @@ private fun Application.configureRouting(appData: AppData) {
     }
 }
 
-fun Route.crudEndpoints(appData: AppData, log: Logger = LoggerFactory.getLogger("crudRoutes")): Route =
+fun Route.crudEndpoints(appData: ArenaApplicationDeps, log: Logger = LoggerFactory.getLogger("crudRoutes")): Route =
     route("/crud/items") {
         get {
             val categoryParam = call.request.queryParameters["category"] ?: "electronics"

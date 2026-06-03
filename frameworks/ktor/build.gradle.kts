@@ -27,6 +27,9 @@ dependencies {
     implementation(libs.logback.classic)
     implementation(libs.postgresql)
     implementation(libs.r2dbc.pool)
+
+    testImplementation(kotlin("test"))
+    testImplementation(ktorLibs.server.testHost)
 }
 
 ktor {
