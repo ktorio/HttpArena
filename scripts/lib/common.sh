@@ -11,6 +11,7 @@ REQUESTS_DIR="$ROOT_DIR/requests"
 RESULTS_DIR="$ROOT_DIR/results"
 CERTS_DIR="$ROOT_DIR/certs"
 DATA_DIR="$ROOT_DIR/data"
+PROFILES_DIR="$ROOT_DIR/profiles"
 
 # Framework container ports. Used by every framework's Dockerfile too.
 PORT=8080         # h1 plaintext, also h2c for gRPC

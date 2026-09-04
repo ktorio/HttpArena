@@ -79,8 +79,12 @@ framework_start() {
     local endpoint="$1"
     local cpu_limit="${2:-}"
 
-    docker stop -t 5 "$CONTAINER_NAME" 2>/dev/null || true
+    docker stop -t 10 "$CONTAINER_NAME" 2>/dev/null || true
     docker rm   -f  "$CONTAINER_NAME" 2>/dev/null || true
+
+    # Per-framework subdirectory so concurrent/successive frameworks writing a
+    # profile (e.g. JFR) at the same in-container path don't clobber each other.
+    mkdir -p "$PROFILES_DIR/$FRAMEWORK"
 
     local args=(
         -d --name "$CONTAINER_NAME" --network host
@@ -90,6 +94,12 @@ framework_start() {
         -v "$DATA_DIR/dataset.json:/data/dataset.json:ro"
         -v "$DATA_DIR/static:/data/static:ro"
         -v "$CERTS_DIR:/certs:ro"
+        -v "$PROFILES_DIR/$FRAMEWORK:/profiles"
+        # Picked up automatically by the JVM entrypoint (logs a harmless "Picked
+        # up JAVA_TOOL_OPTIONS" line to stderr). Lets GC-flag experiments be
+        # swept from the host shell without rebuilding the framework image for
+        # every candidate. Empty/unset is a no-op.
+        -e "JAVA_TOOL_OPTIONS=${JAVA_TOOL_OPTIONS:-}"
     )
 
     # Profiles that exercise the database get DATABASE_URL + per-profile conn cap.
@@ -134,7 +144,7 @@ framework_start() {
 }
 
 framework_stop() {
-    docker stop -t 5  "$CONTAINER_NAME" 2>/dev/null || true
+    docker stop -t 10 "$CONTAINER_NAME" 2>/dev/null || true
     # -v nukes any anonymous volumes the framework image declared (e.g.
     # postgres-style VOLUME directives in a Dockerfile). Without it the
     # volume lingers on every benchmark cycle and silently fills disk.
