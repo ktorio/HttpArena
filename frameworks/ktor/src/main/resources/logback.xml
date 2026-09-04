@@ -4,7 +4,20 @@
             <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
+    <!-- /profiles is the same bind-mounted, per-run results directory that -XX:StartFlightRecording
+         writes profile.jfr into (see frameworks/ktor/Dockerfile and scripts/lib/framework.sh).
+         save_result() already captures stdout via `docker logs` into site/static/logs/, but at very
+         high connection counts (e.g. 16384) that capture has come back effectively empty - writing
+         WARN-level output directly to this mounted file is more robust at that scale. -->
+    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+        <file>/profiles/app.log</file>
+        <append>false</append>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
     <root level="WARN">
         <appender-ref ref="STDOUT"/>
+        <appender-ref ref="FILE"/>
     </root>
 </configuration>
