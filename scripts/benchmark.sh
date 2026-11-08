@@ -11,6 +11,8 @@
 #   ./scripts/benchmark.sh <framework> --save
 #
 # Environment overrides — see scripts/lib/common.sh for the full list.
+#   JFR=true enables Java Flight Recorder and exports recordings to JFR_DIR.
+#   JFR_DIR defaults to <repo>/jfr.
 
 set -euo pipefail
 
@@ -31,6 +33,11 @@ source "$SOURCE_DIR/profiles.sh"
 if [ -n "${HOST_PROFILE:-}" ]; then
     [ -f "$SOURCE_DIR/hosts/$HOST_PROFILE.sh" ] || { echo "[FAIL] unknown HOST_PROFILE '$HOST_PROFILE' (no scripts/lib/hosts/$HOST_PROFILE.sh)" >&2; exit 1; }
     source "$SOURCE_DIR/hosts/$HOST_PROFILE.sh"
+fi
+JFR="${JFR:-false}"
+JFR_DIR="${JFR_DIR:-$ROOT_DIR/jfr}"
+if [ "$JFR" = "true" ]; then
+    SERVER_ENV+=("JFR_ENABLED=true")
 fi
 source "$SOURCE_DIR/tools/gcannon.sh"
 source "$SOURCE_DIR/tools/h2load.sh"
@@ -227,6 +234,22 @@ if $need_pg; then postgres_start; fi
 
 # profiles_to_run was fixed at argument parsing, so a bad name failed before
 # the builds and tuning above.
+
+jfr_export() {
+    local profile="$1" conns="$2"
+    local dest="$JFR_DIR/$FRAMEWORK/$profile-$conns.jfr"
+
+    docker stop -t 30 "$CONTAINER_NAME" >/dev/null 2>&1 || true
+    if ! mkdir -p "${dest%/*}"; then
+        warn "could not create JFR output directory ${dest%/*}"
+        return 0
+    fi
+    if docker cp "$CONTAINER_NAME:/app/jfr/profile.jfr" "$dest" >/dev/null; then
+        info "exported JFR recording to $dest"
+    else
+        warn "could not export JFR recording for $FRAMEWORK $profile/${conns}c"
+    fi
+}
 
 # run_one — single (profile, conns) iteration. Returns non-zero if the
 # server failed to start; main loop skips to the next profile in that case.
@@ -516,6 +539,9 @@ else: print(f'{bps}B/s')
     if $is_gateway; then
         gateway_down
     else
+        if [ "$JFR" = "true" ]; then
+            jfr_export "$profile" "$CONNS"
+        fi
         framework_stop
     fi
     return 0

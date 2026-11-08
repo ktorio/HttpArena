@@ -9,14 +9,9 @@ RUN gradle buildFatJar --no-daemon -q
 FROM eclipse-temurin:25-jre
 WORKDIR /app
 COPY --from=build /app/build/libs/ktor-tuned-httparena.jar .
+ENV JFR_ENABLED=false \
+    JFR_FILE=/app/jfr/profile.jfr \
+    JFR_SETTINGS=profile
+RUN mkdir -p /app/jfr
 EXPOSE 8080 8081 8082 8443
-ENTRYPOINT ["java", \
-  "-server", \
-  "-XX:+UseG1GC", \
-  "-XX:+UseNUMA", \
-  "-XX:+AlwaysPreTouch", \
-  "-Dio.netty.transport.noNative=false", \
-  "-Dio.netty.buffer.checkBounds=false", \
-  "-Dio.netty.buffer.checkAccessible=false", \
-  "-Dio.netty.leakDetection.level=disabled", \
-  "-jar", "ktor-tuned-httparena.jar"]
+ENTRYPOINT ["sh", "-c", "if [ \"$JFR_ENABLED\" = \"true\" ]; then exec java -server -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints \"-XX:StartFlightRecording=filename=$JFR_FILE,settings=$JFR_SETTINGS,dumponexit=true\" -XX:+UseG1GC -XX:+UseNUMA -XX:+AlwaysPreTouch -Dio.netty.transport.noNative=false -Dio.netty.buffer.checkBounds=false -Dio.netty.buffer.checkAccessible=false -Dio.netty.leakDetection.level=disabled -jar ktor-tuned-httparena.jar \"$@\"; else exec java -server -XX:+UseG1GC -XX:+UseNUMA -XX:+AlwaysPreTouch -Dio.netty.transport.noNative=false -Dio.netty.buffer.checkBounds=false -Dio.netty.buffer.checkAccessible=false -Dio.netty.leakDetection.level=disabled -jar ktor-tuned-httparena.jar \"$@\"; fi", "--"]
