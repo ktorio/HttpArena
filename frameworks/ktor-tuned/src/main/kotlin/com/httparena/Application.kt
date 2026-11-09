@@ -45,6 +45,9 @@ fun main() {
 
     @OptIn(ExperimentalKtorApi::class)
     val server = embeddedServer(Netty, environment, {
+        connectionGroupSize = 0
+        callGroupSize = 0
+        workerGroupSize = parallelism
         shareWorkGroup = true
         enableH2c = true
 
