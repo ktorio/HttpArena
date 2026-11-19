@@ -60,13 +60,19 @@ framework_subscribes_to() {
 
 # ── Image build ─────────────────────────────────────────────────────────────
 
+# Extra `docker build` flags can be supplied via FRAMEWORK_BUILD_ARGS (word-split),
+# e.g. FRAMEWORK_BUILD_ARGS="--build-arg ENABLE_JFR=true --build-arg KTOR_VERSION=3.7.0
+#   --build-context m2repo=$HOME/.m2/repository" ./scripts/benchmark.sh ktor-tuned
+# Custom build.sh scripts receive it as an exported env var.
 framework_build() {
     info "building image: $IMAGE_NAME"
     local build_script="frameworks/$FRAMEWORK/build.sh"
+    export FRAMEWORK_BUILD_ARGS="${FRAMEWORK_BUILD_ARGS:-}"
     if [ -x "$build_script" ]; then
         "$build_script" || fail "$build_script exited non-zero"
     else
-        docker build -t "$IMAGE_NAME" "frameworks/$FRAMEWORK" \
+        # shellcheck disable=SC2086
+        docker build $FRAMEWORK_BUILD_ARGS -t "$IMAGE_NAME" "frameworks/$FRAMEWORK" \
             || fail "docker build failed"
     fi
 }
