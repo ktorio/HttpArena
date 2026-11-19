@@ -19,6 +19,7 @@ RUN echo "cache_bust=$CACHE_BUST" && \
     make clean && make -j"$(nproc)"
 
 FROM ubuntu:24.04
+RUN apt-get update && apt-get install -y --no-install-recommends libssl3t64 && rm -rf /var/lib/apt/lists/*
 COPY --from=build /usr/lib/liburing.so.2.9 /usr/lib/liburing.so.2.9
 RUN ln -s liburing.so.2.9 /usr/lib/liburing.so.2 && ln -s liburing.so.2 /usr/lib/liburing.so && \
     ldconfig
