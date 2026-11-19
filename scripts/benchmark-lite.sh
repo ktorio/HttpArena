@@ -97,6 +97,17 @@ PROFILE_ORDER=(
     echo-ws
 )
 
+# The lite table is a subset of the full profile list, so a framework's
+# meta.json routinely names profiles that aren't in it. Ignore those (they
+# are never run here anyway) instead of failing like framework.sh does.
+framework_validate_tests() {
+    local t unknown=()
+    for t in ${FRAMEWORK_TESTS//,/ }; do
+        [ -n "${PROFILES[$t]+x}" ] || unknown+=("$t")
+    done
+    [ ${#unknown[@]} -eq 0 ] || info "ignoring profile(s) not in lite table: ${unknown[*]}"
+}
+
 cd "$ROOT_DIR"
 validate_profiles
 

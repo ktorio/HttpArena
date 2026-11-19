@@ -2,15 +2,18 @@ pluginManagement {
     repositories {
         mavenCentral()
         gradlePluginPortal()
+        mavenLocal()
     }
 }
 
 dependencyResolutionManagement {
     repositories {
         mavenCentral()
+        mavenLocal()
     }
     versionCatalogs {
-        create("ktorLibs").from("io.ktor:ktor-version-catalog:3.6.1")
+        val ktorVersion = providers.gradleProperty("ktorVersion").getOrElse("3.6.1")
+        create("ktorLibs").from("io.ktor:ktor-version-catalog:$ktorVersion")
     }
 }
 
