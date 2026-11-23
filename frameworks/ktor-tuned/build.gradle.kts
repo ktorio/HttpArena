@@ -38,6 +38,18 @@ dependencies {
     testImplementation(ktorLibs.server.testHost)
 }
 
+// Prevent the BOM import in the gradle plugin from overriding the Ktor version
+val ktorVersion = providers.gradleProperty("ktorVersion").getOrElse(libs.versions.ktor.plugin.get())
+
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "io.ktor") {
+            useVersion(ktorVersion)
+            because("Always use the ktorVersion override instead of the Ktor plugin BOM version")
+        }
+    }
+}
+
 ktor {
     fatJar {
         archiveFileName.set("ktor-tuned-httparena.jar")
