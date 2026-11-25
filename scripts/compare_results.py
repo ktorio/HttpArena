@@ -41,6 +41,22 @@ def load(root):
     return out
 
 
+GREEN, RED, RESET = "\033[32m", "\033[31m", "\033[0m"
+THRESHOLD = 8.0
+
+
+def colorize(cell):
+    try:
+        v = float(cell.strip().rstrip("%"))
+    except ValueError:
+        return cell
+    if v >= THRESHOLD:
+        return GREEN + cell + RESET
+    if v <= -THRESHOLD:
+        return RED + cell + RESET
+    return cell
+
+
 def delta(a, b):
     if a is None or b is None or a == 0:
         return "n/a"
@@ -52,7 +68,10 @@ def main():
     p.add_argument("other", type=Path, help="results folder to compare against")
     p.add_argument("--base", type=Path, default=ROOT / "results",
                    help="base results folder (default: ./results)")
+    p.add_argument("--color", choices=["auto", "always", "never"], default="always",
+                   help="highlight deltas >= +8%% green, <= -8%% red (default: always)")
     args = p.parse_args()
+    use_color = args.color == "always" or (args.color == "auto" and sys.stdout.isatty())
     for d in (args.base, args.other):
         if not d.is_dir():
             sys.exit(f"Not a directory: {d}")
@@ -71,9 +90,11 @@ def main():
     widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]))]
     left = {0, 1}
 
-    def line(r):
+    def line(r, color=False):
         cells = [c.ljust(w) if i in left else c.rjust(w)
                  for i, (c, w) in enumerate(zip(r, widths))]
+        if color:
+            cells[4] = colorize(cells[4])
         return "| " + " | ".join(cells) + " |"
 
     sep = "| " + " | ".join(
@@ -82,7 +103,7 @@ def main():
     print(line(rows[0]))
     print(sep)
     for r in rows[1:]:
-        print(line(r))
+        print(line(r, use_color))
 
 
 if __name__ == "__main__":
